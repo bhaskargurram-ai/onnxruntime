@@ -105,9 +105,10 @@ void UpsampleBilinear(const int32_t batch_size,
     concurrency::ThreadPool::TrySimpleParallelFor(
         tp, num_channels,
         [&](std::ptrdiff_t c) {
-          const T* const Xdata =
-              XdataBase + (n * num_channels + static_cast<int32_t>(c)) * (input_height * input_width);
-          T* const Ydata = YdataBase + (n * num_channels + static_cast<int32_t>(c)) * (output_height * output_width);
+          // Plane offsets are computed in 64 bits: batch * channels * plane size can exceed INT32_MAX.
+          const std::ptrdiff_t plane = static_cast<std::ptrdiff_t>(n) * num_channels + c;
+          const T* const Xdata = XdataBase + plane * (static_cast<std::ptrdiff_t>(input_height) * input_width);
+          T* const Ydata = YdataBase + plane * (static_cast<std::ptrdiff_t>(output_height) * output_width);
           for (int32_t y = 0; y < output_height; ++y) {
             for (int32_t x = 0; x < output_width; ++x) {
               const int32_t output_offset = output_width * y + x;
@@ -155,8 +156,10 @@ void NhwcUpsampleBilinear(const int32_t batch_size,
                                            height_scale, width_scale, roi,
                                            alloc, get_original_coordinate, false);
   for (int32_t n = 0; n < batch_size; ++n) {
-    const T* const Xdata = XdataBase + n * (input_height * input_width) * num_channels;
-    T* const Ydata = YdataBase + n * (output_height * output_width) * num_channels;
+    // Image offsets are computed in 64 bits: batch * height * width * channels can exceed INT32_MAX.
+    const T* const Xdata =
+        XdataBase + static_cast<std::ptrdiff_t>(n) * input_height * input_width * num_channels;
+    T* const Ydata = YdataBase + static_cast<std::ptrdiff_t>(n) * output_height * output_width * num_channels;
     concurrency::ThreadPool::TryParallelFor(
         tp, static_cast<std::ptrdiff_t>(output_height) * output_width,
         static_cast<double>(num_channels * 2),
@@ -252,8 +255,10 @@ void NhwcUpsampleBilinearInteger(const int32_t batch_size,
                                                          height_scale, width_scale, roi,
                                                          alloc, get_original_coordinate, false);
   for (int32_t n = 0; n < batch_size; ++n) {
-    const T* const Xdata = XdataBase + n * (input_height * input_width) * num_channels;
-    T* const Ydata = YdataBase + n * (output_height * output_width) * num_channels;
+    // Image offsets are computed in 64 bits: batch * height * width * channels can exceed INT32_MAX.
+    const T* const Xdata =
+        XdataBase + static_cast<std::ptrdiff_t>(n) * input_height * input_width * num_channels;
+    T* const Ydata = YdataBase + static_cast<std::ptrdiff_t>(n) * output_height * output_width * num_channels;
     concurrency::ThreadPool::TryParallelFor(
         tp, static_cast<std::ptrdiff_t>(output_height) * output_width,
         static_cast<double>(num_channels * 2),

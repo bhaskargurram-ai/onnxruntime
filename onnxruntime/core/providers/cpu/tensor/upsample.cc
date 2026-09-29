@@ -1200,6 +1200,18 @@ Status Upsample<T>::BaseCompute(OpKernelContext* context,
         ORT_RETURN_IF_NOT(SafeMultiply(output_hw, num_channels_i64, output_hwc),
                           "Resize: output height*width*channels overflows int64.");
 
+        // The bilinear kernels index inside one channel plane (NCHW) or one image (NHWC) with int32 offsets,
+        // so those per-plane / per-image element counts must fit in int32.
+        int64_t input_hw = 0;
+        int64_t input_hwc = 0;
+        ORT_RETURN_IF_NOT(SafeMultiply(input_height_i64, input_width_i64, input_hw) &&
+                              SafeMultiply(input_hw, num_channels_i64, input_hwc),
+                          "Resize: input height*width*channels overflows int64.");
+        ORT_RETURN_IF_NOT(is_nchw ? (is_valid_non_negative_int32(input_hw) && is_valid_non_negative_int32(output_hw))
+                                  : (is_valid_non_negative_int32(input_hwc) && is_valid_non_negative_int32(output_hwc)),
+                          "Resize: ", is_nchw ? "height*width" : "height*width*channels",
+                          " exceeds supported int32 range for CPU linear mode.");
+
         if (is_nchw) {
           if (antialias_) {
             UpsampleBilinearAntiAlias(batch_size, num_channels, input_height, input_width, output_height, output_width,
